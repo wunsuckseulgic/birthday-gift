@@ -27,6 +27,16 @@
       font-family: 'Pixelify Sans', sans-serif;
       color: #555;
     }
+
+    #micButton {
+      font-family: 'Pixelify Sans', sans-serif;
+      font-size: 16px;
+      padding: 10px 18px;
+      margin-top: 15px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+    }
   </style>
 </head>
 
@@ -113,17 +123,28 @@
 
     createCandles(candleCount);
 
-    // Microphone / Blow Detection
-    async function startMicDetection() {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          audio: true
-        });
 
-        const audioContext = new (
+    // ==========================================
+    // MICROPHONE / BLOW DETECTION
+    // ==========================================
+
+    let blown = false;
+
+    async function startMicDetection() {
+
+      try {
+
+        const stream =
+          await navigator.mediaDevices.getUserMedia({
+            audio: true
+          });
+
+        const AudioContext =
           window.AudioContext ||
-          window.webkitAudioContext
-        )();
+          window.webkitAudioContext;
+
+        const audioContext =
+          new AudioContext();
 
         const source =
           audioContext.createMediaStreamSource(stream);
@@ -131,48 +152,51 @@
         const analyser =
           audioContext.createAnalyser();
 
-        analyser.fftSize = 512;
+        analyser.fftSize = 1024;
+        analyser.smoothingTimeConstant = 0.7;
 
         source.connect(analyser);
 
         const dataArray =
-          new Uint8Array(analyser.frequencyBinCount);
+          new Uint8Array(analyser.fftSize);
 
-        let blown = false;
+        document.getElementById("subTitle").textContent =
+          "Blow on the candles! 💨";
+
+        micButton.textContent =
+          "🎙️ Listening... Blow! 💨";
+
 
         function detectBlow() {
-          analyser.getByteFrequencyData(dataArray);
 
-          let highFreqSum = 0;
-          let lowFreqSum = 0;
+          if (blown) return;
 
-          const midpoint = dataArray.length / 2;
+          analyser.getByteTimeDomainData(dataArray);
+
+          let sum = 0;
 
           for (let i = 0; i < dataArray.length; i++) {
-            if (i < midpoint) {
-              lowFreqSum += dataArray[i];
-            } else {
-              highFreqSum += dataArray[i];
-            }
+
+            const value =
+              (dataArray[i] - 128) / 128;
+
+            sum += value * value;
           }
 
-          const highAvg =
-            highFreqSum / midpoint;
+          const volume =
+            Math.sqrt(
+              sum / dataArray.length
+            );
 
-          const lowAvg =
-            lowFreqSum / midpoint;
 
-          const ratio =
-            highAvg / (lowAvg + 1);
+          // Sensitivity of the microphone
+          if (volume > 0.05) {
 
-          const BLOW_RATIO_THRESHOLD = 0.5;
-
-          if (
-            ratio > BLOW_RATIO_THRESHOLD &&
-            !blown
-          ) {
             blown = true;
+
             blowOutCandles();
+
+            return;
           }
 
           requestAnimationFrame(detectBlow);
@@ -180,33 +204,94 @@
 
         detectBlow();
 
-      } catch (err) {
-        console.error("Mic access error:", err);
+      } catch (error) {
+
+        console.error(
+          "Microphone error:",
+          error
+        );
+
+        document.getElementById("subTitle").textContent =
+          "Please allow microphone access 🎙️";
+
+        micButton.disabled = false;
+
+        micButton.textContent =
+          "🎙️ Allow Microphone";
       }
     }
 
+
+    // ==========================================
+    // MICROPHONE BUTTON
+    // ==========================================
+
+    const micButton =
+      document.createElement("button");
+
+    micButton.id = "micButton";
+
+    micButton.textContent =
+      "🎙️ Start Microphone";
+
+    document
+      .getElementById("birthdayText")
+      .appendChild(micButton);
+
+
+    micButton.addEventListener(
+      "click",
+      async () => {
+
+        micButton.disabled = true;
+
+        micButton.textContent =
+          "🎙️ Starting...";
+
+        await startMicDetection();
+
+      }
+    );
+
+
+    // ==========================================
+    // BLOW OUT CANDLES
+    // ==========================================
+
     function blowOutCandles() {
+
       const candles =
         document.querySelectorAll(".candle");
 
       candles.forEach((candle) => {
-        const delay = Math.random() * 1000;
+
+        const delay =
+          Math.random() * 1000;
 
         setTimeout(() => {
+
           candle.classList.add("blown");
+
         }, delay);
+
       });
 
+
       setTimeout(() => {
+
         const subTitle =
           document.getElementById("subTitle");
 
         subTitle.textContent =
-          "Yayy! Wishing you the happiest birthday ever!! 🎉";
+          "Yayy! Wishing you the happiest birthday ever!! 🎉💙";
+
+        micButton.textContent =
+          "✨ Wish made! ✨";
+
       }, 1200);
     }
 
-    startMicDetection();
   </script>
+
 </body>
 </html>
